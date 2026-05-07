@@ -279,7 +279,7 @@ select option{background:white;}
       <div class="info-box"><strong>Lupa kode?</strong> Ketik nama siswa atau nomor HP orang tua.</div>
       <div class="field-group">
         <label class="fl">Nama Siswa atau No. HP Orang Tua</label>
-        <input type="text" id="cariQuery" placeholder="Ahmad Fauzi atau 08123456789" maxlength="50">
+        <input type="text" id="cariQuery" placeholder="Nama siswa, No. HP, atau email orang tua" maxlength="50">
       </div>
       <div class="lu-error" id="errorCari"></div>
       <button class="btn-hijau" onclick="cariData()">Cari Data 🔍</button>
@@ -847,8 +847,8 @@ select option{background:white;}
 // ============================================================
 // CREDENTIALS
 // ============================================================
-const SB_URL  = 'https://ohxepgioghhivpnbbsgb.supabase.co';
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oeGVwZ2lvZ2hoaXZwbmJic2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzg0NjIsImV4cCI6MjA5MjYxNDQ2Mn0.0yhI2WDQhgpW5nDXJdva6nIgoPyjUDnnqSkm-3X5Uyc';
+const SB_URL  = 'https://rtsvoyvuwnmfqfagtume.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0c3ZveXZ1d25tZnFmYWd0dW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMjQyMzYsImV4cCI6MjA5MzcwMDIzNn0.FyfbVgVsqrziTVBxsKr152TPUx3DZXAdUa5dCLSu_Ow';
 const AS_URL  = 'https://script.google.com/macros/s/AKfycbyHy-aKDXb9NFGmZyNpdi2DB1CbSk8f91t2S6-TX0l_-Ynp0hfnoHSu5KvvJN3E_jai/exec';
 
 // ============================================================
@@ -1629,19 +1629,28 @@ async function cariData() {
     const headers={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
     const base=`${SB_URL}/rest/v1/pendaftaran`;
 
-    if (isHP) {
-      // Normalisasi HP — hapus awalan +62/62/0
-      const hp=query.replace(/^(\+62|62)/,'0').replace(/\s|-/g,'');
-      const hpShort=hp.replace(/^0/,'');
-      // Cari di berbagai kolom HP sekaligus
-      const queries = await Promise.all([
-        fetch(`${base}?no_hp_ayah=ilike.*${encodeURIComponent(hpShort)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
-        fetch(`${base}?no_hp_ibu=ilike.*${encodeURIComponent(hpShort)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
-        fetch(`${base}?no_hp_ayah=ilike.*${encodeURIComponent(hp)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
-        fetch(`${base}?no_hp_ibu=ilike.*${encodeURIComponent(hp)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
-      ]);
-      const seen=new Set();
-      rows=queries.flat().filter(r=>r&&r.id&&(seen.has(r.id)?false:seen.add(r.id)));
+    if (isHP || query.includes('@')) {
+      if (query.includes('@')) {
+        // Cari by email
+        const q=encodeURIComponent(query);
+        const queries = await Promise.all([
+          fetch(`${base}?email_ayah=ilike.*${q}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
+          fetch(`${base}?email_wali=ilike.*${q}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
+        ]);
+        const seen=new Set();
+        rows=queries.flat().filter(r=>r&&r.id&&(seen.has(r.id)?false:seen.add(r.id)));
+      } else {
+        // Normalisasi HP — ambil 8 digit terakhir supaya cocok berbagai format
+        const clean=query.replace(/[\s\-\+]/g,'');
+        const short=clean.replace(/^(62|0)/,'');
+        const last8=short.slice(-8);
+        const queries = await Promise.all([
+          fetch(`${base}?no_hp_ayah=ilike.*${encodeURIComponent(last8)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
+          fetch(`${base}?no_hp_ibu=ilike.*${encodeURIComponent(last8)}*&${sel}`,{headers}).then(r=>r.json()).catch(()=>[]),
+        ]);
+        const seen=new Set();
+        rows=queries.flat().filter(r=>r&&r.id&&(seen.has(r.id)?false:seen.add(r.id)));
+      }
     } else {
       // Cari nama — coba nama_lengkap dan nama_panggilan
       const q=encodeURIComponent(query);
